@@ -1,0 +1,4 @@
+*.pbix
+.env
+.env.*
+*credentials*

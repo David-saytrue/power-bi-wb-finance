@@ -1,0 +1,90 @@
+// Create on Fact_Realization unless noted.
+// Rename table/column names after you see the real Postgres headers.
+
+Выручка WB =
+CALCULATE(SUM('Fact_Realization'[retail_amount]), 'Fact_Realization'[doc_type_name] = "Продажа")
+    - CALCULATE(SUM('Fact_Realization'[retail_amount]), 'Fact_Realization'[doc_type_name] = "Возврат")
+
+Заказы шт =
+SUM('Fact_Orders'[Quantity])
+
+Комиссия WB =
+SUM('Fact_Realization'[ppvz_sales_commission])
+
+База комиссии =
+CALCULATE(SUM('Fact_Realization'[pricewithdisc]), 'Fact_Realization'[IsStorno] = 0)
+
+Комиссия WB % =
+DIVIDE([Комиссия WB], [База комиссии], 0)
+// Measure tools → %
+
+Логистика =
+SUM('Fact_Realization'[delivery_rub])
+
+// Cost must be related: Dim_Cost[Штрих-код] → nomenclature barcode → fact barcode
+Себестоимость продаж =
+CALCULATE(
+    SUMX(
+        FILTER('Fact_Realization', 'Fact_Realization'[doc_type_name] = "Продажа"),
+        RELATED('Dim_Cost'[Себестоимость]) * 'Fact_Realization'[quantity]
+    )
+)
+
+Себестоимость возвратов =
+CALCULATE(
+    SUMX(
+        FILTER('Fact_Realization', 'Fact_Realization'[doc_type_name] = "Возврат"),
+        RELATED('Dim_Cost'[Себестоимость]) * 'Fact_Realization'[quantity]
+    )
+)
+
+Валовая прибыль =
+[Выручка WB]
+    - CALCULATE(
+        SUM('Fact_Realization'[ppvz_reward])
+            + SUM('Fact_Realization'[ppvz_vw])
+            + SUM('Fact_Realization'[ppvz_vw_nds])
+            + SUM('Fact_Realization'[delivery_rub]),
+        'Fact_Realization'[doc_type_name] = "Продажа"
+    )
+    - CALCULATE(
+        SUMX(
+            FILTER('Fact_Realization', 'Fact_Realization'[doc_type_name] = "Продажа"),
+            DIVIDE('Fact_Realization'[retail_amount], 'Fact_Realization'[quantity], 0) * 0.02
+        )
+    )
+    - [Себестоимость продаж]
+    + CALCULATE(
+        SUM('Fact_Realization'[ppvz_reward])
+            + SUM('Fact_Realization'[ppvz_vw])
+            + SUM('Fact_Realization'[ppvz_vw_nds])
+            + SUM('Fact_Realization'[delivery_rub]),
+        'Fact_Realization'[doc_type_name] = "Возврат"
+    )
+    + CALCULATE(
+        SUMX(
+            FILTER('Fact_Realization', 'Fact_Realization'[doc_type_name] = "Возврат"),
+            DIVIDE('Fact_Realization'[retail_amount], 'Fact_Realization'[quantity], 0) * 0.02
+        )
+    )
+    + [Себестоимость возвратов]
+
+Рентабельность =
+DIVIDE([Валовая прибыль], [Выручка WB], 0)
+// Measure tools → %
+
+ROI =
+DIVIDE([Валовая прибыль], [Себестоимость продаж] - [Себестоимость возвратов], 0)
+// Measure tools → %
+
+Выручка пр месяц =
+CALCULATE([Выручка WB], DATEADD('Dim_Date'[Date], -1, MONTH))
+
+Прирост выручки =
+[Выручка WB] - [Выручка пр месяц]
+
+Возвраты шт =
+CALCULATE(SUM('Fact_Realization'[quantity]), 'Fact_Realization'[doc_type_name] = "Возврат")
+
+Продажи по областям =
+CALCULATE(SUM('Fact_Realization'[forpay]), 'Fact_Realization'[isRealization] = 1)
