@@ -1,26 +1,34 @@
 # Marketplace finance dashboard (Power BI)
 
-**Star-schema** semantic model for marketplace seller analytics: fact tables from **PostgreSQL** (Import), dimensions from a **Google Sheet** via `Excel.Workbook(Web.Contents(...))` — no Google connector, no DirectQuery.
+Star / snowflake semantic model for **Wildberries-style seller finance**: facts from **PostgreSQL** (Import only), dictionaries from a public spreadsheet via `Excel.Workbook(Web.Contents(...))` — not the Google Sheets connector, not DirectQuery.
 
 **Author:** [David-saytrue](https://github.com/David-saytrue) · Tbilisi, Georgia
 
-Related: [power-bi-sales-dashboard](https://github.com/David-saytrue/power-bi-sales-dashboard) (flat Superstore model) · [data-engineer-prep](https://github.com/David-saytrue/data-engineer-prep) (SQL / course labs)
-
-The checked-in `.pbix` is optional and not in this repo; rebuild from the scripts below.
+Related: [power-bi-sales-dashboard](https://github.com/David-saytrue/power-bi-sales-dashboard) · [leetcode-sql50-](https://github.com/David-saytrue/leetcode-sql50-)
 
 ---
 
-## Model
+## Dashboard
+
+Owner-facing finance page: KPI cards, month/year filters, revenue & ROI trend, decline/growth leaders by SKU, orders by region, return leaders.
+
+![Owner finance report](docs/dashboard-owner-report.png)
+
+---
+
+## Data model
 
 | Layer | Tables | Source |
 |-------|--------|--------|
-| Facts | `Fact_Realization`, `Fact_Orders` | PostgreSQL views (Import) |
-| Dimensions | `Dim_Nomenclature`, `Dim_Cost`, `Dim_Tariff`, `Dim_Date` | Sheet tabs + calendar |
+| Facts | `_Fact_Realization`, `_Fact_Orders` | PostgreSQL views (Import) |
+| Dimensions | `_Dim-Nomenclature`, `_Dim-Cost`, `_Dim-Tariff`, `Dim_Date` | Sheet tabs + DAX calendar |
 | Staging | `_Workbook` | xlsx export URL — **Enable load OFF** |
 
-Relationships: **one-to-many**, dimension → fact, **Single** cross-filter only (no **Both**).
+Relationships: **one-to-many**, dimension → fact (or dim → dim in the snowflake), **Single** cross-filter only (**0 bidirectional ↔**).
 
-Typical keys:
+![Star / snowflake model](docs/model-star-schema.png)
+
+Keys:
 
 - `Dim_Nomenclature[barcode]` → facts `[barcode]`
 - `Dim_Cost[Штрих-код]` → `Dim_Nomenclature[barcode]`
@@ -38,28 +46,34 @@ Typical keys:
 | `queries/Dim-Cost.m` | `Dim_Cost` |
 | `queries/Dim-Tariff.m` | `Dim_Tariff` |
 
-Paste into **Advanced Editor**. Replace the workbook URL in `00-Workbook.m` if you use your own dictionary sheet (sharing: anyone with the link, xlsx export).
+Paste into **Advanced Editor**. Barcodes are normalized to text (Excel often loads them as numbers with `.0`).
 
-Postgres: connect in Desktop with credentials from your environment; load realization and orders views; rename to `Fact_Realization` / `Fact_Orders`.
+Postgres: connect in Desktop with your own credentials; load realization + orders; rename to the fact table names above.
 
 ---
 
-## DAX (draft)
+## DAX measures
 
-Measures for WB-style finance KPIs: revenue, orders, commission %, logistics, cost of sales/returns, gross profit, ROI, MoM revenue. See [`dax-measures.dax`](dax-measures.dax). Adjust table/column names to match your loaded schema.
+KPIs aligned with the assignment metrics: WB revenue, orders, commission & %, logistics, COGS, gross profit, profitability, ROI, prior-month revenue, MoM change, returns.
+
+See [`dax-measures.dax`](dax-measures.dax).
+
+Hardest parts: gross profit stack (fees + 2% + cost from the cost dim) and period comparison with `DATEADD`.
 
 ---
 
 ## Rebuild checklist
 
-1. Blank `.pbix` → paste M queries → Close & Apply.
+1. Paste M queries → Close & Apply.
 2. Import Postgres facts.
-3. Model view → relationships as above.
-4. Create measures from `dax-measures.dax`.
-5. Build report (KPIs, trends, tops, MoM) per your assignment spec.
+3. Create `Dim_Date` and relationships as in the diagram.
+4. Add measures from `dax-measures.dax`.
+5. Build the report page (or open your local `.pbix`).
+
+The working `.pbix` is kept private (credentials / sandbox data). This repo has rebuild scripts + screenshots only.
 
 ---
 
 ## Portfolio note
 
-Interview-style case: multi-source ingest, dimensional modeling, and business metrics on real-scale row counts (~500k+ realization rows). Credentials and host for the shared Postgres sandbox are **not** stored in this repo.
+Interview-style case: multi-source ingest, dimensional modeling, and business metrics on large realization volumes (~600k rows). DB host and passwords are **not** in this repository.
